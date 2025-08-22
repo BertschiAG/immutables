@@ -273,6 +273,10 @@ public abstract class StyleInfo implements ValueMirrors.Style {
 
   @Value.Parameter
   @Override
+  public abstract boolean isSetOnBuilder();
+
+  @Value.Parameter
+  @Override
   public abstract boolean deferCollectionAllocation();
 
   @Override
@@ -290,6 +294,10 @@ public abstract class StyleInfo implements ValueMirrors.Style {
   @Value.Parameter
   @Override
   public abstract boolean forceJacksonPropertyNames();
+
+  @Value.Parameter
+  @Override
+  public abstract boolean setJacksonPropertyRequired();
 
   @Value.Parameter
   @Override
@@ -464,6 +472,19 @@ public abstract class StyleInfo implements ValueMirrors.Style {
   @Override
   public abstract boolean jakarta();
 
+  @Value.Parameter
+  @Override
+  public abstract boolean legacyAccessorOrdering();
+
+  @Value.Parameter
+  @Override
+  public abstract boolean builderToString();
+
+  @Value.Parameter
+  @Override
+  public abstract boolean mergeFromSupertypesDynamically();
+
+
   static StyleInfo infoFrom(StyleMirror input) {
     return ImmutableStyleInfo.of(
         input.get(),
@@ -526,11 +547,13 @@ public abstract class StyleInfo implements ValueMirrors.Style {
         input.attributelessSingleton(),
         input.unsafeDefaultAndDerived(),
         input.clearBuilder(),
+        input.isSetOnBuilder(),
         input.deferCollectionAllocation(),
         input.deepImmutablesDetection(),
         input.overshadowImplementation(),
         input.implementationNestedInBuilder(),
         input.forceJacksonPropertyNames(),
+        input.setJacksonPropertyRequired(),
         input.forceJacksonIgnoreFields(),
         input.forceEqualsInWithers(),
         input.jacksonIntegration(),
@@ -561,6 +584,9 @@ public abstract class StyleInfo implements ValueMirrors.Style {
         ImmutableSet.copyOf(input.allowedClasspathAnnotationsName()),
         input.fallbackNullableAnnotationName(),
         input.limitStringLengthInToString(),
-        input.jakarta());
+        input.jakarta(),
+        input.legacyAccessorOrdering(),
+        input.builderToString(),
+        input.mergeFromSupertypesDynamically());
   }
 }

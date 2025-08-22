@@ -18,7 +18,7 @@
     <parent>
         <artifactId>criteria</artifactId>
         <groupId>org.immutables</groupId>
-        <version>2.10.2-SNAPSHOT</version>
+        <version>2.11.4-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>criteria-mongo</artifactId>
@@ -26,6 +26,7 @@
     <description>
       Mongo Adapter for Criteria
     </description>
+    <url>https://github.com/immutables/immutables/tree/master/criteria/mongo</url>
 
     <properties>
         <module.name>${project.groupId}.criteria.mongo</module.name>

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2018 Immutables Authors and Contributors
+   Copyright 2013-2025 Immutables Authors and Contributors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -56,11 +56,15 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * It's pointless to refactor this mess until
@@ -71,17 +75,17 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   private static final WholeTypeVariable NON_WHOLE_TYPE_VARIABLE = new WholeTypeVariable(-1);
   private static final int CONSTRUCTOR_PARAMETER_DEFAULT_ORDER = 0;
   private static final int CONSTRUCTOR_NOT_A_PARAMETER = -1;
-  private static final String GUAVA_IMMUTABLE_PREFIX = UnshadeGuava.typeString("collect.Immutable");
+  private static final String GUAVA_IMMUTABLE_PREFIX = UnshadeGuava.qualify("collect.Immutable");
   private static final String VALUE_ATTRIBUTE_NAME = "value";
   private static final String ID_ATTRIBUTE_NAME = "_id";
   private static final String[] EMPTY_SERIALIZED_NAMES = {};
 
   public AttributeNames names;
   public boolean isGenerateDefault;
+  public @Nullable Object constantDefault;
   public boolean isGenerateDerived;
   public boolean isGenerateAbstract;
   public boolean isGenerateLazy;
-  public boolean isAttributeBuilder;
   public ImmutableList<String> typeParameters = ImmutableList.of();
   public ImmutableList<AnnotationInjection> annotationInjections = ImmutableList.of();
   // Replace with delegation?
@@ -189,6 +193,10 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
         || isEnumType();
   }
 
+  public boolean hasConstantDefault() {
+    return constantDefault != null;
+  }
+
   public boolean hasSimpleScalarElementType() {
     ensureTypeIntrospected();
 
@@ -205,8 +213,8 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   public boolean requiresAlternativeStrictConstructor() {
     return typeKind.isCollectionKind()
         || (typeKind.isMappingKind()
-            && !typeKind.isPlainMapKind()
-            && !typeKind.isMultimap());
+        && !typeKind.isPlainMapKind()
+        && !typeKind.isMultimap());
   }
 
   public boolean isSettable() {
@@ -392,7 +400,6 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
       return extractAnnotationsForElement(
           ElementType.METHOD,
           protoclass().styles().style().passAnnotationsNames());
-
     }
     return Annotations.getAnnotationLines(element,
         protoclass().styles().style().passAnnotationsNames(),
@@ -428,14 +435,32 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   public List<CharSequence> getJacksonFieldsAnnotations() {
-    return extractAnnotationsForElement(ElementType.FIELD, Collections.<String>emptySet());
+    return extractAnnotationsForElement(ElementType.FIELD, Collections.emptySet());
   }
 
   private CharSequence jacksonPropertyAnnotation() {
     StringBuilder propertyAnnotation = new StringBuilder("@").append(Annotations.JACKSON_PROPERTY);
+
+    Map<String, String> propertyAnnotationFields = new HashMap<>();
     if (protoclass().styles().style().forceJacksonPropertyNames()) {
-      propertyAnnotation.append('(').append(StringLiterals.toLiteral(names.raw)).append(')');
+      propertyAnnotationFields.put(VALUE_ATTRIBUTE_NAME, StringLiterals.toLiteral(names.raw));
     }
+
+    if (protoclass().styles().style().setJacksonPropertyRequired() && isMandatory()) {
+      propertyAnnotationFields.put("required", "true");
+    }
+
+    if (!propertyAnnotationFields.isEmpty()) {
+      String propertyAnnotationFieldString = propertyAnnotationFields
+          .entrySet().stream()
+          .map((propertyAnnotationField) -> propertyAnnotationField.getKey() + " = " + propertyAnnotationField.getValue())
+          .collect(Collectors.joining(", "));
+
+      propertyAnnotation.append("(")
+          .append(propertyAnnotationFieldString)
+          .append(")");
+    }
+
     return propertyAnnotation;
   }
 
@@ -495,7 +520,7 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   public boolean isDataIgnore() {
-    return DataIgnoreMirror.isPresent(element);
+    return DataIgnoreMirror.isPresent(element) || DDataIgnoreMirror.isPresent(element);
   }
 
   public List<String> typeParameters() {
@@ -575,10 +600,12 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
       if (isMaybeComparableKey()) {
         this.orderKind = orderKind;
       } else {
-        reportOrderingError(annotationName, "requires that a (multi)set's elements or a map's keys are Comparable");
+        reportOrderingError(annotationName,
+            "requires that a (multi)set's elements or a map's keys are Comparable");
       }
     } else {
-      reportOrderingError(annotationName, "can be applied only to SortedSet, SortedMap and SortedMultiset attributes");
+      reportOrderingError(annotationName,
+          "can be applied only to SortedSet(NavigableSet), SortedMap(NavigableMap) and SortedMultiset attributes");
     }
   }
 
@@ -661,7 +688,7 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   public String getUnwrappedElementType() {
-    return isContainerType() && nullElements.ban()
+    return (isContainerType() && nullElements.ban())
         ? unwrapType(firstTypeParameter())
         : getElementType();
   }
@@ -689,13 +716,26 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     return rawTypeName;
   }
 
+  // this is similar to getUnwrapperOrRawElementType, but arguably faster
+  public String getRawTypeOrPrimitive() {
+    return rawTypeName != null ? rawTypeName : returnTypeName;
+  }
+
+  // It will still be referenced from (more legacy) mongodb repositories, transformers and visitors
+  // very rarely used by anyone nowadays, including me. But we remove the use of it from
+  // Immutables.generator and Modifiables.generator
+  @Deprecated
   public String getConsumedElementType() {
-    return (isUnwrappedElementPrimitiveType()
-        || isStringType()
-        || (hasContainedElementType() && firstTypeParameter().equals(String.class.getName()))
-        || hasEnumFirstTypeParameter())
-            ? getWrappedElementType()
-            : "? extends " + getWrappedElementType();
+    return consumesWildcardExtends()
+        ? "? extends " + getWrappedElementType()
+        : getWrappedElementType();
+  }
+
+  public boolean consumesWildcardExtends() {
+    return !isUnwrappedElementPrimitiveType()
+        && !isStringType()
+        && !(hasContainedElementType() && firstTypeParameter().equals(String.class.getName()))
+        && !hasEnumFirstTypeParameter();
   }
 
   public boolean hasEnumFirstTypeParameter() {
@@ -883,15 +923,19 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
 
   private String optionalSpecializedType() {
     switch (typeKind) {
-    case OPTIONAL_INT_JDK:
-      return int.class.getName();
-    case OPTIONAL_LONG_JDK:
-      return long.class.getName();
-    case OPTIONAL_DOUBLE_JDK:
-      return double.class.getName();
-    default:
-      throw new AssertionError();
+      case OPTIONAL_INT_JDK:
+        return int.class.getName();
+      case OPTIONAL_LONG_JDK:
+        return long.class.getName();
+      case OPTIONAL_DOUBLE_JDK:
+        return double.class.getName();
+      default:
+        throw new AssertionError();
     }
+  }
+
+  public boolean forceEqualsInWithers() {
+    return isSuppressedOptional || containingType.forceEqualsInWithers();
   }
 
   public AttributeTypeKind typeKind() {
@@ -1018,13 +1062,14 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   public boolean isAttributeBuilder() {
-    return isAttributeBuilder;
+    return attributeBuilderDescriptor != null;
   }
 
   // undefined value is any less than CONSTRUCTOR_NOT_A_PARAMETER
   private int parameterOrder = Integer.MIN_VALUE;
 
   private AttributeTypeKind typeKind;
+  private AttributeTypeKind originalTypeKind;
   public boolean jacksonAnyGetter;
   public boolean jacksonValue;
   public boolean hasTypeVariables;
@@ -1145,9 +1190,16 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     return isPrimitiveType(getUnwrappedElementType());
   }
 
+  /**
+   * This is confusing, but we're {@code true} here if it is optional type, and when we cast it
+   * we would produce unsafe unchecked cast, so we actually suppress it. The general rule is that
+   * if we have {@code Optional<? extends A>} we can cast it to {@code Optional<A>} because Optional
+   * is immutable and its type parameter is covariant, runtime instances are indistinguishable,
+   * and not heap pollution possible by such cast. If we don't have an {@code extends}, then we
+   * don't need a cast, and we don't need to suppress any unchecked warnings.
+   */
   public boolean isSafeUncheckedCovariantCast() {
-    return isOptionalType()
-        && !getConsumedElementType().equals(getWrappedElementType());
+    return isOptionalType() && consumesWildcardExtends();
   }
 
   public boolean isAuxiliary() {
@@ -1217,12 +1269,18 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     validateTypeAndAnnotations();
 
     initAttributeValueType();
-    if (supportBuiltinContainerTypes()) {
-      initImmutableCopyOf();
-    }
+    initImmutableCopyOf();
 
     initAttributeBuilder();
     maybeInitJavaBean();
+
+    checkSuppressedOptional();
+  }
+
+  private void checkSuppressedOptional() {
+    if (originalTypeKind.isOptionalKind() && !typeKind.isOptionalKind()) {
+      isSuppressedOptional = true;
+    }
   }
 
   private Set<String> thrownCheckedExceptions = ImmutableSet.of();
@@ -1265,12 +1323,12 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   private void initAttributeBuilder() {
-    AttributeBuilderReflection attributeBuilderReflection =
-        AttributeBuilderReflection.forValueType(this);
-    isAttributeBuilder = attributeBuilderReflection.isAttributeBuilder();
+    if (style().attributeBuilderDetection() && containedTypeElement != null) {
+      AttributeBuilderReflection attributeBuilderReflection = AttributeBuilderReflection.forValueType(this);
 
-    if (isAttributeBuilder) {
-      attributeBuilderDescriptor = attributeBuilderReflection.getAttributeBuilderDescriptor();
+      if (attributeBuilderReflection.isAttributeBuilder()) {
+        attributeBuilderDescriptor = attributeBuilderReflection.getAttributeBuilderDescriptor();
+      }
     }
   }
 
@@ -1309,7 +1367,8 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
         returnType,
         importsResolver,
         protoclass().constitution().generics().vars(),
-        null);
+        null,
+        style().nullableAnnotation());
 
     provider.sourceExtractionCache = containingType;
     provider.forAttribute = true;
@@ -1350,7 +1409,6 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   private void initAttributeValueType() {
-
     if ((style().deepImmutablesDetection()
         || style().attributeBuilderDetection()
         || containingType.isGenerateCriteria())
@@ -1364,7 +1422,8 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
       } else {
         Environment environment = protoclass().environment();
         for (Protoclass p : environment.protoclassesFrom(Collections.singleton(containedTypeElement))) {
-          if ((p.kind().isDefinedValue() || p.kind().isModifiable() || p.kind().isJavaBean())
+          // TODO (?) p.kind().isRecord()
+          if ((p.kind().isRecord() || p.kind().isDefinedValue() || p.kind().isModifiable() || p.kind().isJavaBean())
               && canAccessImplementation(p)
               && p.constitution().generics().isEmpty()) {
             this.attributeValueType = environment.composeValue(p);
@@ -1378,7 +1437,7 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   private boolean canAccessImplementation(Protoclass p) {
     return p.constitution().implementationVisibility().isPublic()
         || (!p.constitution().implementationVisibility().isPrivate()
-            && p.constitution().implementationPackage().equals(p.constitution().definingPackage()));
+        && p.constitution().implementationPackage().equals(p.constitution().definingPackage()));
   }
 
   public String implementationModifiableType() {
@@ -1428,18 +1487,45 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   private void initTypeKind() {
+    boolean ensureTypeIntrospected = false;
+    boolean applyMaybeEnumContainedType = false;
+
     if (instantiation != null) {
       typeKind = AttributeTypeKind.ENCODING;
     } else if (isGenerateDerived) {
       typeKind = AttributeTypeKind.REGULAR;
-      ensureTypeIntrospected();
+      ensureTypeIntrospected = true;
     } else if (returnType.getKind() == TypeKind.ARRAY) {
       typeKind = AttributeTypeKind.ARRAY;
-      ensureTypeIntrospected();
+      ensureTypeIntrospected = true;
     } else {
       typeKind = AttributeTypeKind.forRawType(rawTypeName);
+      ensureTypeIntrospected = true;
+      if (!typeKind.isRegular()) {
+        applyMaybeEnumContainedType = true;
+      }
+    }
+
+    originalTypeKind = typeKind;
+
+    if (!typeKind.isRegular() && !supportBuiltinContainerTypes()) {
+      applyMaybeEnumContainedType = false;
+      typeKind = AttributeTypeKind.REGULAR;
+    }
+
+    // This (boolean vars and check here) is an artifact of rearranging things,
+    // so that some logic happening after that will be correct,
+    // in particular, call to initAttributeValueType() should work on the outer type
+    // stored in containedTypeElement,
+    // not inner element type of container, which would be no longer a container due to
+    // supportBuiltinContainerTypes() logic above, which makes it not a container,
+    // overall it's dumb, but it's too late to make it correct and not break too much of
+    // functionality.
+    if (ensureTypeIntrospected) {
       ensureTypeIntrospected();
-      typeKind = typeKind.havingEnumFirstTypeParameter(hasEnumContainedElementType());
+      if (applyMaybeEnumContainedType) {
+        typeKind = typeKind.havingEnumFirstTypeParameter(hasEnumContainedElementType());
+      }
     }
   }
 
@@ -1501,12 +1587,6 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
   }
 
   private void validateTypeAndAnnotations() {
-    boolean wasOptional = isOptionalType();
-
-    if (!typeKind.isRegular() && !supportBuiltinContainerTypes()) {
-      typeKind = AttributeTypeKind.REGULAR;
-    }
-
     if (typeKind.isContainerKind() && typeParameters.isEmpty()) {
       typeKind = AttributeTypeKind.REGULAR;
       if (!SuppressedWarnings.forElement(element, false, false).rawtypes) {
@@ -1547,10 +1627,12 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     }
 
     if (isGenerateDefault && isOptionalType()) {
-      typeKind = AttributeTypeKind.REGULAR;
-      report()
-          .annotationNamed(DefaultMirror.simpleName())
-          .warning(About.UNTYPE, "@Value.Default on a optional attribute make it lose its special treatment");
+      if (!isJdkOptional()) {
+        typeKind = AttributeTypeKind.REGULAR;
+        report()
+            .annotationNamed(DefaultMirror.simpleName())
+            .warning(About.UNTYPE, "@Value.Default on a optional (non JDK) attribute make it lose its special treatment");
+      }
     }
 
     if (isContainerType() && containingType.isUseStrictBuilder()) {
@@ -1559,7 +1641,8 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
         report()
             .annotationNamed(DefaultMirror.simpleName())
             .warning(About.UNTYPE,
-                "@Value.Default on a container attribute make it lose its special treatment (when strictBuilder = true)");
+                "@Value.Default on a container attribute make it lose its special treatment (when strictBuilder = " +
+                    "true)");
       } else if (isNullable()) {
         typeKind = AttributeTypeKind.REGULAR;
         report()
@@ -1590,10 +1673,6 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
       typeKind = AttributeTypeKind.REGULAR;
       report().warning(About.UNTYPE,
           "Optional<Optional<*>> is turned into regular attribute to avoid ambiguity problems");
-    }
-
-    if (wasOptional && !isOptionalType()) {
-      isSuppressedOptional = true;
     }
   }
 
@@ -1773,6 +1852,9 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
       // nullable arrays should be able to distinguish null from default
       return true;
     }
+    if (isGenerateDefault && isJdkOptional()) {
+      return true;
+    }
     if (typeKind.isCollectionOrMapping() && isGenerateDefault) {
       // becase builder/collector is used and have to distinguish non-default value is set
       return true;
@@ -1853,6 +1935,23 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     return containingType.constitution.style();
   }
 
+  @Override
+  public FallbackNullableKind fallbackNullableKind() {
+    return containingType.fallbackNullableKind();
+  }
+
+  public boolean whenTypeuseFallbackNullable() {
+    return isNullable() && fallbackNullableKind().isTypeuse();
+  }
+
+  public boolean whenTypeuseNullableElement() {
+    return nullElements.allow() && fallbackNullableKind().isTypeuse();
+  }
+
+  public boolean whenTypeuseNullableElementParameter() {
+    return (nullElements.allow() || nullElements.skip()) && fallbackNullableKind().isTypeuse();
+  }
+
   public boolean supportsInternalImplConstructor() {
     return !isEncoding() || instantiation.supportsInternalImplConstructor();
   }
@@ -1900,6 +1999,10 @@ public final class ValueAttribute extends TypeIntrospectionBase implements HasSt
     if (nullabilityInSupertype == null && !isPrimitive() && !isNullable()) {
       nullabilityInSupertype = isAccessorNullableAccessor(accessor);
     }
+  }
+
+  void initTypeuseNullableSupertype() {
+    nullabilityInSupertype = NullabilityAnnotationInfo.forTypeUse(true);
   }
 
   public boolean isNullableInSupertype() {

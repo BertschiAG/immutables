@@ -19,7 +19,7 @@
   <parent>
     <artifactId>immutables</artifactId>
     <groupId>org.immutables</groupId>
-    <version>2.10.2-SNAPSHOT</version>
+    <version>2.11.4-SNAPSHOT</version>
   </parent>
   <artifactId>ordinal</artifactId>
   <name>${project.groupId}.${project.artifactId}</name>
@@ -29,6 +29,7 @@
     allows for special performance optiomization, like using bit-sets to
     efficiently calculate inclusion in set or set differences.
   </description>
+  <url>https://github.com/immutables/immutables/tree/mongo</url>
   <dependencies>
     <dependency>
       <groupId>com.google.guava</groupId>

@@ -5,7 +5,6 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
-import javax.annotation.Nullable;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Enclosing;
 import org.immutables.value.Value.Immutable;
@@ -17,6 +16,7 @@ import org.immutables.value.Value.Parameter;
 public interface Dtt {
   int a();
 
+  @CustomNullableAnnotation
   String b();
 
   @Value.Default
@@ -44,7 +44,7 @@ public interface Dtt {
   public interface Hjj<H> {
     Map<String, H> ef();
 
-    @Nullable
+    @CustomNullableAnnotation
     H h();
 
     class Builder<H> extends ImmutableDtt.Hjj.Builder<H> {}

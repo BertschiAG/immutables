@@ -15,6 +15,7 @@
  */
 package org.immutables.value.processor;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
@@ -26,6 +27,7 @@ import org.immutables.value.processor.encode.Generator_Encodings;
 import org.immutables.value.processor.meta.*;
 import org.immutables.value.processor.meta.Proto.DeclaringPackage;
 
+import javax.annotation.Nullable;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
@@ -35,6 +37,7 @@ import javax.tools.FileObject;
 import javax.tools.JavaFileManager.Location;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 @SupportedAnnotationTypes({
@@ -46,12 +49,18 @@ import java.util.Set;
     FactoryMirror.QUALIFIED_NAME,
     FConstructorMirror.QUALIFIED_NAME,
     FBuilderMirror.QUALIFIED_NAME,
+    VBuilderMirror.QUALIFIED_NAME,
     FIncludeMirror.QUALIFIED_NAME,
     EncodingMirror.QUALIFIED_NAME,
     CriteriaMirror.QUALIFIED_NAME,
     CriteriaRepositoryMirror.QUALIFIED_NAME
 })
 public final class Processor extends AbstractGenerator {
+  private static final String GRADLE_INCREMENTAL = "immutables.gradle.incremental";
+  private static final String GUAVA_PREFIX = "immutables.guava.prefix";
+  private static final String JACKSON_PREFIX = "immutables.jackson.prefix";
+  private static final String CUSTOM_ANNOTATION = "immutables.annotation";
+
   @Override
   protected void process() {
     prepareOptions();
@@ -59,6 +68,7 @@ public final class Processor extends AbstractGenerator {
     Round round = ImmutableRound.builder()
         .addAllAnnotations(annotations())
         .processing(processing())
+        .addAllCustomImmutableAnnotations(getImmutableAnnotationsFromOptions())
         .addAllCustomImmutableAnnotations(CustomImmutableAnnotations.annotations())
         .round(round())
         .build();
@@ -92,23 +102,32 @@ public final class Processor extends AbstractGenerator {
       invoke(new Generator_Encodings().generate());
     }
     if (round.environment().hasDatatypesModule()) {
-      invoke(new Generator_Datatypes().usingValues(values).generate());
+      invoke(new Generator_DataOld().usingValues(values).generate());
+    }
+    if (round.environment().hasDatatypes2Module()) {
+      invoke(new Generator_Datatype().usingValues(values).generate());
     }
   }
 
   private void prepareOptions() {
     UnshadeGuava.overridePrefix(processing().getOptions().get(GUAVA_PREFIX));
+    UnshadeJackson.overridePrefix(processing().getOptions().get(JACKSON_PREFIX));
   }
 
   @Override
   public Set<String> getSupportedAnnotationTypes() {
     return FluentIterable.from(super.getSupportedAnnotationTypes())
+        .append(getImmutableAnnotationsFromOptions())
         .append(CustomImmutableAnnotations.annotations())
         .toSet();
   }
 
-  private static final String GRADLE_INCREMENTAL = "immutables.gradle.incremental";
-  private static final String GUAVA_PREFIX = "immutables.guava.prefix";
+  private Iterable<String> getImmutableAnnotationsFromOptions() {
+    @Nullable String customAnnotation = processing().getOptions().get(CUSTOM_ANNOTATION);
+    return customAnnotation != null && !customAnnotation.isEmpty()
+        ? Splitter.on(',').splitToList(customAnnotation)
+        : Collections.emptySet();
+  }
 
   @Override
   public Set<String> getSupportedOptions() {
@@ -117,7 +136,9 @@ public final class Processor extends AbstractGenerator {
     if (processingEnv.getOptions().containsKey(GRADLE_INCREMENTAL)) {
       options.add("org.gradle.annotation.processing.isolating");
     }
+    options.add(CUSTOM_ANNOTATION);
     options.add(GUAVA_PREFIX);
+    options.add(JACKSON_PREFIX);
     return options.build();
   }
 

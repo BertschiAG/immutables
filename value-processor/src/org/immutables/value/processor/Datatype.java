@@ -22,7 +22,7 @@ import org.immutables.value.processor.meta.ValueAttribute;
 import org.immutables.value.processor.meta.ValueType;
 
 @Generator.Template
-abstract class Datatypes extends ValuesTemplate {
+abstract class Datatype extends ValuesTemplate {
   // renderers for encoding elements
   final Renderers rr = new Generator_Renderers();
 
@@ -73,12 +73,11 @@ abstract class Datatypes extends ValuesTemplate {
     Multimap<AbstractDeclaring, ValueType> byDeclaring = ArrayListMultimap.create();
     for (ValueType value : values.values()) {
       Protoclass protoclass = value.constitution.protoclass();
-      if (protoclass.kind().isValue() || protoclass.kind().isEnclosing()) {
-        Optional<AbstractDeclaring> typeAdaptersProvider = protoclass.datatypeProvider();
-        if (typeAdaptersProvider.isPresent()) {
-          byDeclaring.put(typeAdaptersProvider.get(), value);
-        } else if (protoclass.datatypeMarker().isPresent()
-            && protoclass.declaringType().isPresent()) {
+      if (protoclass.kind().isValue() || protoclass.kind().isRecord() || protoclass.kind().isEnclosing()) {
+        Optional<AbstractDeclaring> datatypeProvider = protoclass.datatype2Provider();
+        if (datatypeProvider.isPresent()) {
+          byDeclaring.put(datatypeProvider.get(), value);
+        } else if (protoclass.datatype2Marker() && protoclass.declaringType().isPresent()) {
           DeclaringType topLevel = protoclass.declaringType().get().associatedTopLevel();
           byDeclaring.put(topLevel, value);
         }

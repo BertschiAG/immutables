@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2018 Immutables Authors and Contributors
+   Copyright 2013-2025 Immutables Authors and Contributors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -279,6 +280,10 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
     return !style().buildOrThrow().isEmpty();
   }
 
+  public boolean isGenerateBuilderToString() {
+    return style().builderToString();
+  }
+
   public boolean isGenerateCanBuild() {
     return !style().canBuild().isEmpty();
   }
@@ -399,7 +404,7 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
     return constitution.protoclass().isJacksonProperties();
   }
 
-  public boolean isGenerateJacksonIngoreFields() {
+  public boolean isGenerateJacksonIgnoreFields() {
     return isGenerateJacksonProperties()
         && style().forceJacksonIgnoreFields();
   }
@@ -447,8 +452,8 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
    * Check if criteria repository should be generated. Usually means {@code @Criteria.Repository}
    * annotation is present.
    * This type of repository is different from (legacy) mongo repository identified by
-   * {@code @Mongo.Repository}
-   * (see {@link #isGenerateRepository()}.
+   * {@code @Mongo.Repository}.
+   * @see #isGenerateRepository()
    */
   public boolean isGenerateCriteriaRepository() {
     return constitution.protoclass().criteriaRepository().isPresent();
@@ -607,7 +612,10 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
 
   public boolean isGenerateWithInterface() {
     ensureTypeIntrospected();
-    return implementedInterfacesNames.contains(typeWith().relative());
+    // if it is a not-yet-generated type, it will be relative simple name
+    // if it is already generated (incremental compilation), then it may be resolved to fqcn
+    return implementedInterfacesNames.contains(typeWith().relative())
+        || implementedInterfacesNames.contains(typeWith().absolute());
   }
 
   public boolean isUseCopyMethods() {
@@ -1158,12 +1166,12 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
           && !attribute.isGuavaImmutableDeclared();
       if (def) {
         switch (kind) {
-        case MAP:
-        case LIST:
-        case SET:
-          return !attribute.isGenerateJdk9();
-        default:
-          return true;
+          case MAP:
+          case LIST:
+          case SET:
+            return !attribute.isGenerateJdk9();
+          default:
+            return true;
         }
       }
       return false;
@@ -1374,7 +1382,8 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
             input,
             newTypeStringResolver(),
             context.parameters.toArray(new String[0]),
-            context.arguments.toArray(new String[0]));
+            context.arguments.toArray(new String[0]),
+            style().nullableAnnotation());
         provider.collectUnresolvedYetArgumentsTo(this.unresolvedYetArguments);
         provider.process();
         return provider.returnTypeName();
@@ -1488,6 +1497,10 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
     return buildFromTypes;
   }
 
+  public boolean isDynamicBuildFromTypes() {
+    return style().mergeFromSupertypesDynamically();
+  }
+
   public Serialization serial = Serialization.NONE;
 
   public ImmutableList<String> throwing = ImmutableList.of();
@@ -1545,8 +1558,7 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
   }
 
   public Set<String> getImmutableCopyOfRoutines() {
-    Set<String> routines = new LinkedHashSet<>();
-    routines.addAll(style().immutableCopyOfRoutinesNames());
+    Set<String> routines = new LinkedHashSet<>(style().immutableCopyOfRoutinesNames());
     for (ValueType v : nested) {
       routines.addAll(v.style().immutableCopyOfRoutinesNames());
     }
@@ -1583,7 +1595,13 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
     return !kind().isFactory()
         && !isUseStrictBuilder()
         && !isGenerateBuildOrThrow()
+        && !isGenerateBuilderToString()
+        && !isGenerateBuilderIsSet()
         && !getThrowForInvalidImmutableState().isCustom;
+  }
+
+  public boolean isGenerateBuilderIsSet() {
+    return style().isSetOnBuilder();
   }
 
   public boolean isDeprecated() {
@@ -1616,8 +1634,8 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
     if (docComment == null) {
       this.docComment = constitution.isImplementationPrimary()
           || style().getStyles().isImmutableIdentityNaming()
-              ? extractDocComment(element)
-              : ImmutableList.<String>of();
+          ? extractDocComment(element)
+          : ImmutableList.<String>of();
     }
     return docComment;
   }
@@ -1810,7 +1828,8 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
             type,
             new ImportsTypeStringResolver(constitution.protoclass().declaringType().orNull(), declaringType),
             constitution.generics().vars(),
-            null);
+            null,
+            style().nullableAnnotation());
     provider.process();
     return provider.returnTypeName();
   }
@@ -1867,12 +1886,35 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
   }
 
   public boolean isDataInline() {
-    return DataInlineMirror.isPresent(element);
+    return DataInlineMirror.isPresent(element) || DDataInlineMirror.isPresent(element);
   }
 
   @Override
   public StyleInfo style() {
     return constitution.style();
+  }
+
+  private FallbackNullableKind fallbackNullableKind;
+
+  @Override
+  public FallbackNullableKind fallbackNullableKind() {
+    if (fallbackNullableKind == null) {
+      String annotation = style().fallbackNullableAnnotationName();
+      if (annotation.equals(INHERITED_CLASS_NAME)) {
+        if (constitution.protoclass().isJSpecifyNullMarked()) {
+          fallbackNullableKind = FallbackNullableKind.JSPECIFY;
+        } else {
+          fallbackNullableKind = FallbackNullableKind.UNSPECIFIED;
+        }
+      } else {
+        if (constitution.protoclass().environment().isTypeuseOnly(annotation)) {
+          fallbackNullableKind = FallbackNullableKind.SPECIFIED_TYPEUSE;
+        } else {
+          fallbackNullableKind = FallbackNullableKind.SPECIFIED;
+        }
+      }
+    }
+    return fallbackNullableKind;
   }
 
   public Element originalElement() {
@@ -1889,6 +1931,10 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
 
   public Collection<String> constructorInjectedAnnotations() {
     return collectInjections(Where.CONSTRUCTOR);
+  }
+
+  public Collection<String> withTypeInjectedAnnotations() {
+    return collectInjections(Where.WITH_TYPE);
   }
 
   public Collection<String> immutableTypeInjectedAnnotations() {
@@ -1974,4 +2020,5 @@ public final class ValueType extends TypeIntrospectionBase implements HasStyleIn
   }
 
   private static final Splitter DOC_COMMENT_LINE_SPLITTER = Splitter.on('\n').omitEmptyStrings();
+  private static final String INHERITED_CLASS_NAME = Inherited.class.getName();
 }

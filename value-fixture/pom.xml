@@ -20,7 +20,7 @@
   <parent>
     <groupId>org.immutables</groupId>
     <artifactId>immutables</artifactId>
-    <version>2.10.2-SNAPSHOT</version>
+    <version>2.11.4-SNAPSHOT</version>
   </parent>
 
   <artifactId>value-fixture</artifactId>
@@ -28,6 +28,7 @@
   <description>
     Module that contains all tests for the code generation capability
   </description>
+  <url>https://github.com/immutables/immutables/tree/value-fixture</url>
 
   <properties>
     <module.name>${project.groupId}.value.fixture</module.name>
@@ -73,6 +74,12 @@
       <version>${project.version}</version>
       <optional>true</optional>
       <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.immutables</groupId>
+      <artifactId>datatype</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.immutables</groupId>
@@ -150,12 +157,23 @@
     <dependency>
       <groupId>org.hibernate.validator</groupId>
       <artifactId>hibernate-validator</artifactId>
-      <version>6.0.20.Final</version>
+      <version>6.2.0.Final</version>
     </dependency>
     <dependency>
       <groupId>com.google.errorprone</groupId>
       <artifactId>error_prone_annotations</artifactId>
       <version>${errorprone.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-xml</artifactId>
+      <version>${jackson.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
   <build>
@@ -177,6 +195,9 @@
               <version>${project.version}</version>
             </path>
           </annotationProcessorPaths>
+          <compilerArgs>
+            <arg>-Aimmutables.annotation=nonimmutables.MyVal</arg>
+          </compilerArgs>
         </configuration>
       </plugin>
     </plugins>
@@ -274,6 +295,7 @@
             <configuration>
               <fork>true</fork>
               <compilerArgs combine.children="override">
+                <arg>-Aimmutables.annotation=nonimmutables.MyVal</arg>
                 <!-- required by javac detection logic in immutables -->
                 <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
               </compilerArgs>
@@ -301,7 +323,6 @@
               <compilerArgs combine.children="append">
                 <arg>-XDcompilePolicy=simple</arg>
                 <arg>-Xplugin:ErrorProne -Xep:CheckReturnValue:ERROR -Xep:MethodCanBeStatic:ERROR -Xep:UnnecessaryCheckNotNull:WARN -Xep:ReturnValueIgnored:WARN</arg>
-
                 <!-- required by errorprone -->
                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
@@ -384,6 +405,7 @@
             <configuration>
               <compilerId>eclipse</compilerId>
               <compilerArgs combine.children="override">
+                <arg>-Aimmutables.annotation=nonimmutables.MyVal</arg>
                 <arg>-Xlint:unchecked</arg>
               </compilerArgs>
             </configuration>

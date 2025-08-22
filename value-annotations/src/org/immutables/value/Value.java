@@ -1,5 +1,5 @@
 /*
-   Copyright 2014-2018 Immutables Authors and Contributors
+   Copyright 2014-2025 Immutables Authors and Contributors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public @interface Value {
      * If {@code copy=false} then generation of copying methods will be disabled.
      * This applies to static "copyOf" methods as well as modify-by-copy "withAttributeName" methods
      * which return modified copy using structural sharing where possible.
-     * Default value is {@literal true}, i.e generate copy methods.
+     * Default value is {@literal true}, i.e. generate copy methods.
      * @return if generate copy methods
      */
     boolean copy() default true;
@@ -108,12 +108,27 @@ public @interface Value {
     boolean lazyhash() default false;
 
     /**
-     * If {@code builder=false}, disables generation of {@code builder()}. Default is
-     * {@literal true}.
+     * If {@code builder=false}, disables generation of {@code builder()}. The default is
+     * {@literal true} and builder is generated unless turned off.
      * @return if generate builder
      */
     boolean builder() default true;
   }
+
+  /**
+   * This annotation works on records to create builders for records.
+   * Place this {@code Builder} annotation on record to generate builder from its
+   * canonical constructor parameters (record components).
+   * <pre>
+   * &#064;Builder
+   * record A(int b, String c) {}
+   * </pre>
+   * Immutable values as {@link Immutable Value.Immutable} generate builder by default, unless
+   * turned off using {@literal @}{@link Immutable#builder() Value.Immutable(builder=false)},
+   * so this annotation does nothing for {@code Value.Immutable} types.
+   */
+  @Target(ElementType.TYPE)
+  @interface Builder {}
 
   /**
    * Includes specified abstract value types into generation of processing.
@@ -133,7 +148,7 @@ public @interface Value {
    * Immutable implementation classes will be generated as classes enclosed into special "umbrella"
    * top level class, essentialy named after annotated class with "Immutable" prefix (prefix could
    * be customized using {@link Style#typeImmutableEnclosing()}). This could mix
-   * with {@link Value.Immutable} annotation, so immutable implementation class will contains
+   * with {@link Value.Immutable} annotation, so immutable implementation class will contain
    * nested immutable implementation classes.
    * <p>
    * Implementation classes nested under top level class with "Immutable" prefix
@@ -173,12 +188,98 @@ public @interface Value {
 
   /**
    * Annotates accessor that should be turned in set-able generated attribute. However, it is
-   * non-mandatory to set it via builder. Default value will be assigned to attribute if none
-   * supplied, this value will be obtained by calling method annotated this annotation.
+   * non-mandatory to set it via builder. If the attribute is not assigned any value using builder,
+   * then the default value will be computed by calling the non-abstract (or default method
+   * in the case of interface) accessor method annotated with {@code @Default} annotation.
+   * <p>
+   * The expression in the method can use literal/constant values as well as calling other
+   * attributes, including other {@code @Default} and {@code @Derived} values as long as those
+   * computations do not form cycles (i.e. unresolvable recursion would occur).
+   * Such cycle will be detected and a runtime exception will be thrown.
+   * <p>Default value can be also computed for optional values (only JDK optional values,
+   * but not for third-party optional types), this can be used to give it the default which differs
+   * from {@code empty()} and can be even dependent on values of other attributes as mentioned above.
    */
   @Documented
   @Target(ElementType.METHOD)
-  @interface Default {}
+  @interface Default {
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@link java.lang.String} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface String {
+      java.lang.String value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code int} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Int {
+      int value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code long} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Long {
+      long value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code char} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Char {
+      char value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code double} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Double {
+      double value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code float} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Float {
+      float value();
+    }
+
+    /**
+     * Annotate abstract accessor, record parameter or factory method parameter,
+     * providing compile-time constant {@code boolean} default value.
+     * Must match parameter type / accessor method return type.
+     */
+    @Documented
+    @Target({ElementType.PARAMETER, ElementType.METHOD})
+    @interface Boolean {
+      boolean value();
+    }
+  }
 
   /**
    * Annotate attribute as <em>auxiliary</em> and it will be stored and will be accessible, but will
@@ -193,7 +294,7 @@ public @interface Value {
   @interface Auxiliary {}
 
   /**
-   * Lazy attributes cannot be set, defined as method that computes value, which is invoke lazily
+   * Lazy attributes cannot be set, defined as method that computes value, which is invoked lazily
    * once and only once in a thread safe manner.
    *
    * <pre>
@@ -262,7 +363,7 @@ public @interface Value {
     /**
      * Specify as {@code false} to cancel out parameter: an attribute would not be considered as a
      * parameter. This is useful to override the effect of {@link Style#allParameters()} flag.
-     * By default it is {@code true} and should be omitted.
+     * By default, it is {@code true} and should be omitted.
      * @return {@code false} if not a parameter
      */
     boolean value() default true;
@@ -396,7 +497,7 @@ public @interface Value {
 
   /**
    * Marks attribute for exclusion from auto-generated {@code toString} method. It will
-   * be just excluded by default. However you can choose to put special masking characters next to
+   * be just excluded by default. However, you can choose to put special masking characters next to
    * the attribute instead of value, like 3 stars or 4 pound signs, this replacement string
    * can be set using {@link Style#redactedMask()} style attribute.
    */
@@ -439,7 +540,7 @@ public @interface Value {
   @interface Style {
     /**
      * Patterns to recognize accessors. For example <code>get = {"is*", "get*"}</code> will
-     * mimick style of bean getters. If none specified or if none matches, then raw accessor name
+     * mimic style of bean getters. If none specified or if none matches, then raw accessor name
      * will be taken literally.
      * <p>
      * By default, only {@code get*} prefix is recognized, along with falling back to use accessor
@@ -463,9 +564,9 @@ public @interface Value {
 
     /**
      * Modify-by-copy "with" method.
+     * @return naming template
      * @see #init()
      * @see #set()
-     * @return naming template
      */
     String with() default "with*";
 
@@ -477,7 +578,8 @@ public @interface Value {
      * or {@code "transform*"} – the choice is yours.
      * Can even be {@code "with*"} or {@code "*"} in hope there will be no overload  collisions.
      * <p>
-     * Unary operator transforms values, optional values and collection elements. (currently JDK Optional only, use Encodings for custom optional and containers).
+     * Unary operator transforms values, optional values and collection elements. (currently JDK Optional only, use
+     * Encodings for custom optional and containers).
      * @return naming template. By default, it is empty and feature is disabled.
      */
     String withUnaryOperator() default "";
@@ -534,9 +636,9 @@ public @interface Value {
      * Builder creator method. This naming allow special keyword "new" value.
      * This will customize builder to be created using constructor rather than
      * factory method.
+     * @return naming template
      * @see #newBuilder()
      * @see #build()
-     * @return naming template
      */
     String builder() default "builder";
 
@@ -546,8 +648,8 @@ public @interface Value {
      * factories. This naming allow special keyword "new" value, which is the default.
      * "new" will customize builder to be created using constructor rather than
      * factory method.
-     * @see #build()
      * @return naming template
+     * @see #build()
      */
     String newBuilder() default "new";
 
@@ -598,12 +700,14 @@ public @interface Value {
     /**
      * Naming template for the {@code toBuilder} method on a immutable instance that returns new builder on which
      * merge method is already called on this instance {@code builder.from(this)}. By default, this naming template
-     * is empty, and this method is not generated. To enable generation of this method, you must specify naming template,
+     * is empty, and this method is not generated. To enable generation of this method, you must specify naming
+     * template,
      * {@code (toBuilder="toBuilder")}. Naming template can insert type name for an asterisk, but in most cases you
      * would just use method name verbatim.
      * <p>
      * <em>Note: This attribute-style is experimental and may be changed in near releases.
-     * This is not compatible with strict builders and will not be generated if {@link #strictBuilder()} is {@code true}.
+     * This is not compatible with strict builders and will not be generated if {@link #strictBuilder()} is
+     * {@code true}.
      * Also, when enabled, this will not be considered an attribute if defined as {@code abstract Builder toBuilder()}
      * in abstract value type.
      * </em>
@@ -635,7 +739,9 @@ public @interface Value {
     String underrideToString() default "";
 
     /**
-     * Delegates {@code toString} implementation completely to a fully qualified path to a method name, example {@code delegateToString="com.whatever.packg.ToStringer.stringify"}. The path will be used literally in generated code, and a single parameter will be passed to it, {@code this} immutable object instance.
+     * Delegates {@code toString} implementation completely to a fully qualified path to a method name, example
+     * {@code delegateToString="com.whatever.packg.ToStringer.stringify"}. The path will be used literally in generated
+     * code, and a single parameter will be passed to it, {@code this} immutable object instance.
      * <p><em>Note: If specified, it will take precedence over any other {@code toString} customization mechanism</em>
      * @return fully qualified static method name, if empty (by default) will not be used
      */
@@ -655,7 +761,8 @@ public @interface Value {
      *   includeHashCode = "[[type]].class.hashCode()"
      *   includeHashCode = "(\"[[type]]\".length() + 1)"
      * </pre>
-     * <p><em>Note: this will be ignored if `hashCode` will be manually written in the abstract value class or {@link #underrideHashCode()} will be used for the same purpose</em>
+     * <p><em>Note: this will be ignored if `hashCode` will be manually written in the abstract value class or
+     * {@link #underrideHashCode()} will be used for the same purpose</em>
      * @return interpolated code snippet, by default empty and have no effect
      */
     String includeHashCode() default "";
@@ -668,7 +775,9 @@ public @interface Value {
     String isInitialized() default "isInitialized";
 
     /**
-     * Method to determine if attribute is set
+     * Naming template for a method to determine if attribute is set. These are used on Modifiables and, internally, on builders.
+     * In order to expose it on builders (make it {@code public}, or package-private if attribute itself
+     * is package-private), use {@link #isSetOnBuilder()} style flag.
      * @return naming template
      */
     String isSet() default "*IsSet";
@@ -744,9 +853,9 @@ public @interface Value {
 
     /**
      * Immutable class name when generated under umbrella class using {@link Enclosing} annotation.
+     * @return naming template
      * @see #typeImmutable()
      * @see #typeImmutableEnclosing()
-     * @return naming template
      */
     String typeImmutableNested() default "*";
 
@@ -842,7 +951,8 @@ public @interface Value {
     /**
      * Strict modifiable will refuse any accessor value (by throwing {@link IllegalStateException})
      * which is mandatory. Enabled by default. Set it to {@code false} and it will allow to get
-     * current field value even if not initialized ({@code null} for references, {@code 0}, {@code false} &mdash; for primitives).
+     * current field value even if not initialized ({@code null} for references, {@code 0}, {@code false} &mdash; for
+     * primitives).
      * @return default is {@code true}, enabling strict modifiable
      */
     boolean strictModifiable() default true;
@@ -882,7 +992,6 @@ public @interface Value {
      *
      * ColorTuple.of(0xFF, 0x00, 0xFE);
      * </pre>
-     *
      * @return if all attributes will be considered parameters
      */
     boolean allParameters() default false;
@@ -898,7 +1007,7 @@ public @interface Value {
 
     /**
      * Enable if you needed to copy header comments from an originating source file with abstract
-     * types to generated (derived) implementation classes. Header comments are comments preceeding
+     * types to generated (derived) implementation classes. Header comments are comments preceding
      * package declaration statement. It could be used to copy license headers or even special
      * pragma comments (such as {@code //-no-import-rewrite}).
      * It is off by default because not often needed (as generated files are transient and not
@@ -914,12 +1023,17 @@ public @interface Value {
      * annotations to the implementation class. In general, copying all type-level annotations is
      * not very safe for annotation processing and some other annotation consumers. By default, no
      * annotations are copied unless you specify non-empty annotation type list as value
-     * for {@code passAnnotations} attribute. However there are some special annotations which are
+     * for {@code passAnnotations} attribute. However, there are some special annotations which are
      * copied using special logic, such as {@code Nullable} annotations (and Jackson annotations)
      * <p>
-     * This style parameter is experimental and may change in future.
+     * This has a number of limitations, including that it's not suited for {@link ElementType#TYPE_USE}
+     * annotations (annotations attached to types), only for method annotation. In many cases type-use
+     * annotation would be replicated automatically in derived signatures, but in case of type-use
+     * nullable annotations it's the best to specify the nullable annotation of choice using
+     * {@link #fallbackNullableAnnotation()} so it will be used in generated code in all places where
+     * original annotations would not propagate automatically.
      * @return types of annotations to pass to an immutable implementation class and its
-     *         attributes.
+     *     attributes.
      */
     Class<? extends Annotation>[] passAnnotations() default {};
 
@@ -949,7 +1063,7 @@ public @interface Value {
     /**
      * Specify whether init, copy and factory methods and constructors for an unwrapped {@code X} of
      * {@code Optional<X>}
-     * should accept {@code null} values as empty value. By default nulls are rejected in favor of
+     * should accept {@code null} values as empty value. By default, nulls are rejected in favor of
      * explicit conversion using {@code Optional.ofNullable}. Please note that initializers that
      * take explicit {@code Optional} value always reject nulls regardless of this setting.
      * @return optional elements accept nullables
@@ -979,7 +1093,7 @@ public @interface Value {
      * {@code true}. This property will be ignored if {@link Immutable#singleton()} returns
      * <code>true</code>.
      * @return {@code true} if will generate a no argument constructor with protected visibility,
-     *         disabled by default.
+     *     disabled by default.
      */
     boolean protectedNoargConstructor() default false;
 
@@ -1010,7 +1124,7 @@ public @interface Value {
      * initializers as otherwise result will be undefined as order of initialization is not
      * guaranteed.
      * @return {@code true} if old unsafe (but potentially with less overhead) generation should be
-     *         used.
+     *     used.
      */
     boolean unsafeDefaultAndDerived() default false;
 
@@ -1022,10 +1136,20 @@ public @interface Value {
      * previously allocated one.
      * <p>
      * <em>Note: this functionality is experimental and may be changed in further versions</em>
-     * @see #clear()
      * @return {@code true} if clean method would be generated.
+     * @see #clear()
      */
     boolean clearBuilder() default false;
+
+    /**
+     * When enabled, builder will have isSet methods generated for each attribute, like {@code aIsSet()},
+     * {@code bIsSet()}. These are telling if attribute was initialized on a builder.
+     * The actual naming template is configured by {@link #isSet()} style attribute.
+     * @return {@code true} if isSet methods for each attribute will be exposed on builders.
+     * @see #isSet()
+     * @see #clearBuilder()
+     */
+    boolean isSetOnBuilder() default false;
 
     /**
      * When this optimisation in enabled then the processor tries to defer allocation of
@@ -1119,17 +1243,17 @@ public @interface Value {
      * <p>
      * <em>Note: not all generators or generation modes might honor this attribute</em>
      * @return {@code true} if methods of generated builders and other classes should return
-     *         abstract type, rather than work with immutable implementation class.
+     *     abstract type, rather than work with immutable implementation class.
      */
     boolean overshadowImplementation() default false;
 
     /**
-     * By default builder is generated as inner builder class nested in immutable value class.
+     * By default, builder is generated as inner builder class nested in immutable value class.
      * Setting this to {@code true} will flip the picture — immutable implementation class will be
      * nested inside builder, which will be top level class. In case if {@link #visibility()} is set
      * to {@link ImplementationVisibility#PRIVATE} this feature is turned on automatically.
      * @return {@code true} if builder should be generated as top level class and implementation
-     *         will became static inner class inside builder.
+     *     will become static inner class inside builder.
      */
     boolean implementationNestedInBuilder() default false;
 
@@ -1139,9 +1263,15 @@ public @interface Value {
      * you use naming strategies. Also make sure you recognize both "get*" and "is*" as attribute
      * name patterns as Jackson infers default names using JavaBean convention.
      * @return {@code true} if force jackson property names. default it {@code true}, set
-     *         {@code false} to disable
+     *     {@code false} to disable
      */
     boolean forceJacksonPropertyNames() default true;
+
+    /**
+     * Generates {@code JsonProperty(required=true)} attribute for mandatory attributes.
+     * @return default is {@code true}, set to {@code false} to disable
+     */
+    boolean setJacksonPropertyRequired() default true;
 
     /**
      * @return if put {@code JsonIgnore} on fields, defaults to {@code false}
@@ -1167,7 +1297,7 @@ public @interface Value {
      * {@code JsonSerialize/JsonDeserialize} annotations on the value types without redundant
      * support code being generated.
      * @return {@code true} if generate special Jackson code when encountered
-     *         {@code JsonSerialize/JsonDeserialize}. Default is {@code true}.
+     *     {@code JsonSerialize/JsonDeserialize}. Default is {@code true}.
      */
     boolean jacksonIntegration() default true;
 
@@ -1176,7 +1306,7 @@ public @interface Value {
      * {@literal @}{@code Value.Immutable(intern=true)} weak (see {@link WeakReference})
      * interning will be used.
      * @return {@code true} if enable weak interning for {@code intern=true} values,
-     *         defaults to {@code false}
+     *     defaults to {@code false}
      */
     boolean weakInterning() default false;
 
@@ -1214,7 +1344,7 @@ public @interface Value {
     /**
      * Runtime exception to throw when an immutable object is in an invalid state. I.e. when some
      * mandatory attributes are missing and immutable object cannot be built. The runtime exception
-     * class must have a constructor that takes a single string, otherwise there will be compile
+     * class must have a constructor that takes a single string, otherwise there will be compile-time
      * error in the generated code.
      * <p>
      * The default exception type is {@link IllegalStateException}. In case if
@@ -1234,7 +1364,7 @@ public @interface Value {
     Class<? extends RuntimeException> throwForInvalidImmutableState() default IllegalStateException.class;
 
     /**
-     * Runtime exception to throw when null reference is passed to non-nullable parameter or occured
+     * Runtime exception to throw when null reference is passed to non-nullable parameter or occurred
      * in array/container that must not contain nulls. It is expected that the exception will have
      * public constructor receiving string as message/parameter name. The
      * default is {@link NullPointerException} and the calls are usually delegated to
@@ -1257,7 +1387,7 @@ public @interface Value {
      *    depluralize = true, // enable feature
      *    depluralizeDictionary = {"person:people", "foot:feet"}) // specifying dictionary of exceptions
      * </pre>
-     *
+     * <p>
      * When given the dictionary defined as {@code "person:people", "foot:feet"} then
      * depluralization examples for collection {@code add*} method in builder would be:
      * <ul>
@@ -1270,27 +1400,26 @@ public @interface Value {
      * The default value is a {@code false}: feature is disabled, compatible with previous
      * versions.
      * <p>
-     * Instead
-     * @see Depluralize
      * @return {@code true} if depluralization enabled.
+     * @see Depluralize
      */
     boolean depluralize() default false;
 
     /**
      * Dictionary of exceptions — array of "singular:plural" pairs as alternative to mechanical "*s"
-     * depluralization. Suppress trimming of trailing "s" for certain words by using exceptions of
+     * depluralization. Suppress trimming of trailing "s" for certain words by using exceptions in
      * form {@code "words:words"} or simply {@code "words"}. Important to note is that words will be
-     * converted to lowercase and identifier in question consists of couple of words joined using
-     * camel case — only a last segment will be considered for depluralization when matching
-     * dictionary. Uninterpretable pairs will be ignored. By default no dictionary is supplied and
+     * converted to lowercase and identifier in question consisting of one or more words joined using
+     * camel case —  only a last segment will be considered for depluralization when matching
+     * dictionary. Uninterpretable pairs will be ignored. By default, no dictionary is supplied and
      * depluralization performed only by mechanical "*s" trimming.
      * <p>
      * This attribute is semi-deprecated in favor of using {@link Depluralize#dictionary()}
-     * annotation which may be placed on a package, type or as meta-annotation. And dictionary will
+     * annotation which may be placed on a package, type or as meta-annotation. Full dictionary will
      * be merged across all applicable definitions.
+     * @return array of "singular:plural" pairs.
      * @see #depluralize()
      * @see Depluralize#dictionary()
-     * @return array of "singular:plural" pairs.
      */
     String[] depluralizeDictionary() default {};
 
@@ -1307,8 +1436,8 @@ public @interface Value {
      * </em>
      * </p>
      * @return classes, for which static imports like {@code import static ..Type.immutableCopyOf;}
-     *         will be generated along with corresponding invocations of {@code immutableCopyOf}
-     *         method when accepting parameters.
+     *     will be generated along with corresponding invocations of {@code immutableCopyOf}
+     *     method when accepting parameters.
      */
     Class<?>[] immutableCopyOfRoutines() default {};
 
@@ -1329,14 +1458,14 @@ public @interface Value {
      * Setting {@code builtinContainerAttributes} to {@code false} would disable generation of
      * built-in convenience features of automatically recognized container types such as
      * {@code Optional}, {@link List}, {@link Map}. This will turn all attribute types into nothing
-     * special setters(initializers) and getters. However any registered encodings (type
+     * special setters(initializers) and getters. However, any registered encodings (type
      * customizers) will be still processed. One of the purposes of this style control is to provide
      * clean-slate when only registered encodings will impact type generation, but none of the
      * built-in types would be applied. Note: that this style controls recognition of the
      * attribute types, but not kind of attributes such as those specified by {@code Value.Default}
      * or {@code Nullable} annotations.
      * @return {@code true} if builtin container attributes should be supported. {@code true} is the
-     *         default
+     *     default
      */
     boolean builtinContainerAttributes() default true;
 
@@ -1348,7 +1477,7 @@ public @interface Value {
      * be used/configured to be partially compatible with some of the conventions.</em>
      * </p>
      * @return {@code true} for void setters and minor tweaks to make modifiables more
-     *         bean-friendly. {@code false} is the default
+     *     bean-friendly. {@code false} is the default
      */
     boolean beanFriendlyModifiables() default false;
 
@@ -1359,7 +1488,7 @@ public @interface Value {
      * <em>This parameter conflicts with {@link #allParameters()} and is ignored when
      * {@code allParameters} is enabled</em>
      * @return {@code true} to turn mandatory attributes into parameters. {@code false} is the
-     *         default
+     *     default
      */
     boolean allMandatoryParameters() default false;
 
@@ -1387,7 +1516,7 @@ public @interface Value {
      * String to substitute value of the attribute in a generated {@code toString} implementation
      * when {@link Redacted} annotation is applied to the attribute.
      * <p>
-     * By default it is an empty string, which also mean that the attribute will not appear in the
+     * By default, it is an empty string, which also mean that the attribute will not appear in the
      * {@code toString} output. If you set it to some value, then it will be printed.
      * @return redacted value substitution string
      */
@@ -1429,7 +1558,7 @@ public @interface Value {
      * <p>
      * To discover builders on value attributes the value methods are scanned for method names
      * matching a patterns specified in {@link #attributeBuilder()}.
-     * This style parameter is experimental and may change in future.
+     * This style parameter is experimental and may change in the future.
      * @return true to enable the feature.
      */
     boolean attributeBuilderDetection() default false;
@@ -1521,7 +1650,7 @@ public @interface Value {
      * <pre>
      * Style(allowedClasspathAnnotations = {java.lang.Override.class})
      * </pre>
-     *
+     * <p>
      * The array will no longer be empty as by default so only specified entries will be applied.
      * Please note that standard {@code java.lang} annotations like {@link java.lang.Override},
      * {@link java.lang.Deprecated}, {@link java.lang.SuppressWarnings} will always be applied where
@@ -1540,25 +1669,25 @@ public @interface Value {
      * as the lines to the {@code META-INF/extensions/org.immutables.inhibit-classpath} resource
      * file available in classpath.
      * @return a non-empty array of only allowed auto-discovered annotations. Empty by
-     *         default, which allows any auto-discovered annotation support for backward
-     *         compatibility.
+     *     default, which allows any auto-discovered annotation support for backward
+     *     compatibility.
      */
     Class<? extends Annotation>[] allowedClasspathAnnotations() default {};
 
     /**
      * For many cases of nullable annotation is just copied to generated code when recognized (by simple name, see
      * {@link #nullableAnnotation()}). But for some cases we need to internally insert some nullable annotation when we
-     * don't know any "original" annotation. By default, we assume that would be {@code javax.annotation.Nullable} (if
-     * it present on the classpath during compilation). When you set {@link #fallbackNullableAnnotation()}
+     * don't know any "original" annotation. By default, we assume that would be {@code javax.annotation.Nullable}
+     * (if it is present on the classpath during compilation). When you set {@link #fallbackNullableAnnotation()}
      * to non-default value (default value is {@code java.lang.annotation.Inherited} which serves as a placeholder
      * for an unspecified value)
      * value, we would use that annotation in such cases.
      * <p><em>Note</em> that this annotation would always be on the compilation classpath (as it is specified as
      * class literal in a style annotation, but will not be otherwise validated as applicable and will be used verbatim
      * in all places where we ought to insert nullable annotation without the link to any "original" nullable
-     * annotation in the hand-written code.
+     * annotation in the handwritten code.
      * @return fallback nullable annotation to use. Default values is unspecified encoded as {@code Inherited.class}
-     * so that {@code javax.annotation.Nullable} annotation will be used if found on classpath.
+     *     so that {@code javax.annotation.Nullable} annotation will be used if found on classpath.
      */
     Class<? extends Annotation> fallbackNullableAnnotation() default Inherited.class;
 
@@ -1576,6 +1705,50 @@ public @interface Value {
      * @return {@code true} if enabled. The default is {@code false}.
      */
     boolean jakarta() default false;
+
+    /**
+     * When set to {@code true}, processor will switch to legacy accessor (attribute)
+     * source ordering traversal method. Prior to <em>Immutables</em> {@code v2.7.5},
+     * the source ordering was defined be a "shallow-first" approach, where accessors
+     * from the child class were added first, then the superclass, then the interfaces.
+     * This changed in {@code v2.7.5}, where the order became interfaces, then superclass,
+     * then child class, this is current default traversal order. In addition to a style
+     * attribute, this behaviour can be also set via JVM boolean property (a {@code -D} one)
+     * {@code org.immutables.useLegacyAccessorOrdering=true}
+     * @return {@code true} if enabled. The default is {@code false}
+     */
+    boolean legacyAccessorOrdering() default false;
+
+    /**
+     * When set to {@code true}, processor will generate {@code toString()} method on builders,
+     * which would be safe to call at any time. It will output values of the attributes set so far,
+     * and will also list required attributes which are not set yet. Historically, we've tried that
+     * our default generated code be compact, with only handful of conveniences,
+     * so {@code toString()} on builders are only generated if this flag is turned on.
+     * @return {@code true} if enabled. The default is {@code false}
+     */
+    boolean builderToString() default false;
+
+    /**
+     * Builder has {@link #from()} method generated which initializes builder values from an instance.
+     * When abstract value type has some supertypes, an abstract class and or interfaces, from method can populate
+     * values, even partially from an instances of such supertypes. Some release ago, we've started
+     * to use runtime {@code instanceof} check when choosing which supertypes are implemented by a given instance
+     * and some, arguably, complicated machinery with bit masks to initialize  attributes not more than once.
+     * This change was motivated by the style of working when once would want to initialize values fully
+     * from instances, regardless of "segregated" interfaces. In the cases where generics are used in supertype
+     * attributes, and when instances happen to implement same interfaces but with different type arguments,
+     * this dynamic approach can result in {@link ClassCastException} or heap pollution.
+     *
+     * <p>The other way is to just have copy logic in
+     * statically resolved, i.e. at compile time overload, and copy/initialize only those properties which
+     * are strictly defined by a supertype. When this {@code mergeFromSupertypesDynamically} style flag is
+     * set to {@code false}, the generated code will switch to using simpler copy logic in compile-time resolved
+     * overloads. The default is {@code true} to use {@code instanceof} checks and bit masks under the hood
+     * to extract all attributes using all implemented supertypes.
+     * @return {@code false} to disable. The default is {@code true}
+     */
+    boolean mergeFromSupertypesDynamically() default true;
 
     /**
      * If implementation visibility is more restrictive than visibility of abstract value type, then
@@ -1637,7 +1810,7 @@ public @interface Value {
        */
       NONE,
       /**
-       * This validation method is similar to {@link #NONE} in that that there are no null checks.
+       * This validation method is similar to {@link #NONE} in that there are no null checks.
        * But all attributes which are not `@Default` or marked with `@Nullable` are still checked
        * to be provided (even with {@code null} values in case of object references.
        */
@@ -1654,15 +1827,15 @@ public @interface Value {
        * checks, please use custom validation mixin approach, where you create base abstract class
        * or interface with default methods to provide `@Value.Check` which would explicitly call
        * validation of your choice. Please see discussion and examples provided in the following
-       * github issue:
+       * Github issue:
        * <a href="https://github.com/immutables/immutables/issues/26">immutables/immutables#26</a>
        */
       VALIDATION_API
     }
 
     /**
-     * Enables depluralization and may provide depluralization dictionary.
-     * The annotation which may be placed on a package, type or as meta-annotation. And dictionary
+     * Enables depluralization and may provide depluralization dictionary via {@link #dictionary()} attribute.
+     * The annotation which may be placed on a package, type or as meta-annotation. Full dictionary
      * will be merged across all applicable definitions.
      * @see Style#depluralize()
      */
@@ -1670,8 +1843,8 @@ public @interface Value {
     @interface Depluralize {
       /**
        * Depluralization dictionary.
-       * @see Style#depluralizeDictionary()
        * @return array of "singular:plural" pairs.
+       * @see Style#depluralizeDictionary()
        */
       String[] dictionary() default {};
     }

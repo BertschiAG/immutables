@@ -40,7 +40,6 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
 import org.immutables.generator.SourceTypes;
@@ -74,6 +73,10 @@ public final class FromSupertypesModel {
               Collections.nCopies(withArgs.getValue().size(), "?")))
           : type;
       this.attributes = ImmutableList.copyOf(attribute);
+    }
+
+    public String simpleName() {
+      return raw.substring(raw.lastIndexOf('.') + 1);
     }
 
     @Override
@@ -206,26 +209,37 @@ public final class FromSupertypesModel {
       }
     }
     try {
-      String ownType = accessor.getReturnType().toString();
-      String inheritedType = attr.returnType.toString();
+      String settledType = attr.returnType.toString();
+      String supertypeMethod = accessor.getReturnType().toString();
+
       // This kind of parsing normalizes and ignores type annotations
       Type.Producer tf = new Type.Producer();
       Type.Parser parser = new Type.Parser(tf, tf.parameters());
+      parser.nullableAnnotationSimpleName = attr.style().nullableAnnotation();
+      Type parsedSupersType = parser.parse(supertypeMethod);
+      boolean seenNullableAnnotation = parser.seenNullableTypeAnnotation;
 
-      if (parser.parse(ownType).equals(parser.parse(inheritedType))) {
-        attr.initNullabilitySupertype(accessor);
+      Type parsedSettledType = parser.parse(settledType);
+
+      if (parsedSupersType.equals(parsedSettledType)) {
+        if (seenNullableAnnotation) {
+          attr.initTypeuseNullableSupertype();
+        } else {
+          attr.initNullabilitySupertype(accessor);
+        }
         return true;
       }
     } catch (Exception typeParseException) {
       if (typeParseExceptionReported.compareAndSet(false, true)) {
-        reporter.warning("Type parsing problem in FromSupertypesModel: %s", typeParseException);
+        reporter.warning("Type parsing problem in FromSupertypesModel: %s", typeParseException + "\n\tat " + typeParseException.getStackTrace()[0]);
       }
     }
 
     reporter.warning(About.FROM,
         "Generated builder '.from' method will not copy from attribute '%s'"
-        + " because it has different return type in supertype"
-        + " (And we cannot handle generic specialization or covariant overrides yet)."
+        + " because it has some not-yet-generated type,"
+        + " or different return type in supertype "
+        + " (we cannot handle generic specialization or covariant overrides yet)."
         + " Sometimes it is possible to avoid this by providing abstract override method in this value object",
         attr.name());
     return false;

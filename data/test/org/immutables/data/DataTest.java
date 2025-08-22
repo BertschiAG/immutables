@@ -7,7 +7,6 @@ import org.immutables.data.Datatype.Builder;
 import org.immutables.data.Datatype.Feature;
 import org.immutables.data.Datatype.Violation;
 import org.immutables.data.Datatypes_Dtt.Dtt_;
-import org.immutables.data.Datatypes_Dtt.Inl_;
 import org.immutables.data.Datatypes_Maybe.Maybe_;
 import org.junit.Test;
 import static org.immutables.check.Checkers.check;
@@ -33,7 +32,7 @@ public class DataTest {
   public void verifyAndBuild() {
     Dtt_ dtt = _Dtt();
     Builder<Dtt> b = dtt.builder();
-    check(b.verify()).hasSize(2);
+    check(b.verify()).hasSize(1);
 
     try {
       b.build();

@@ -25,6 +25,9 @@ public final class ValueMirrors {
   @Mirror.Annotation("org.immutables.value.Value")
   public @interface ValueUmbrella {}
 
+  @Mirror.Annotation("org.immutables.value.Value.Builder")
+  public @interface VBuilder {}
+  
   @Mirror.Annotation("org.immutables.value.Value.Immutable")
   public @interface Immutable {
 
@@ -40,6 +43,12 @@ public final class ValueMirrors {
 
     boolean builder() default true;
   }
+
+  @Mirror.Annotation("org.jspecify.annotations.Nullable")
+  public @interface JSpecifyNullable {}
+
+  @Mirror.Annotation("org.jspecify.annotations.NullMarked")
+  public @interface JSpecifyNullMarked {}
 
   @Mirror.Annotation("org.immutables.value.Value.NonAttribute")
   public @interface NonAttribute {}
@@ -69,6 +78,41 @@ public final class ValueMirrors {
     int order() default -1;
 
     boolean value() default true;
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.String")
+  public @interface DefaultString {
+    String value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Int")
+  public @interface DefaultInt {
+    int value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Long")
+  public @interface DefaultLong {
+    long value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Char")
+  public @interface DefaultChar {
+    char value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Boolean")
+  public @interface DefaultBoolean {
+    boolean value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Double")
+  public @interface DefaultDouble {
+    double value();
+  }
+
+  @Mirror.Annotation("org.immutables.value.Value.Default.Float")
+  public @interface DefaultFloat {
+    float value();
   }
 
   @Mirror.Annotation("org.immutables.value.Value.Check")
@@ -213,6 +257,8 @@ public final class ValueMirrors {
 
     boolean clearBuilder() default false;
 
+    boolean isSetOnBuilder() default false;
+
     boolean deferCollectionAllocation() default false;
 
     boolean deepImmutablesDetection() default false;
@@ -222,6 +268,8 @@ public final class ValueMirrors {
     boolean implementationNestedInBuilder() default false;
 
     boolean forceJacksonPropertyNames() default true;
+
+    boolean setJacksonPropertyRequired() default true;
 
     boolean forceJacksonIgnoreFields() default false;
 
@@ -285,7 +333,13 @@ public final class ValueMirrors {
 
     boolean jakarta() default false;
 
-    public enum ImplementationVisibility {
+    boolean legacyAccessorOrdering() default false;
+
+    boolean builderToString() default false;
+
+    boolean mergeFromSupertypesDynamically() default true;
+
+    enum ImplementationVisibility {
       PUBLIC,
       SAME,
       SAME_NON_RETURNED,
@@ -293,13 +347,13 @@ public final class ValueMirrors {
       PRIVATE
     }
 
-    public enum BuilderVisibility {
+    enum BuilderVisibility {
       PUBLIC,
       SAME,
       PACKAGE
     }
 
-    public enum ValidationMethod {
+    enum ValidationMethod {
       NONE,
       MANDATORY_ONLY,
       SIMPLE,

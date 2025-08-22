@@ -18,12 +18,14 @@
   <parent>
     <artifactId>immutables</artifactId>
     <groupId>org.immutables</groupId>
-    <version>2.10.2-SNAPSHOT</version>
+    <version>2.11.4-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
   <artifactId>generator-processor</artifactId>
   <name>${project.groupId}.${project.artifactId}</name>
+  <description>Template annotation processor</description>
+  <url>https://github.com/immutables/immutables/tree/generator-processor</url>
 
   <properties>
     <module.name>${project.groupId}.generator.processor</module.name>
